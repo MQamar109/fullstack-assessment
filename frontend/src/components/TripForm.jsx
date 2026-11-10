@@ -1,7 +1,10 @@
+/**
+ * Trip input form: origin, destination, UTC departure, load weight,
+ * checkpoint spacing, and the opt-in storm simulation toggle.
+ */
 import { useState } from 'react'
 
 function defaultDeparture() {
-  // Next full hour, formatted for <input type="datetime-local"> in UTC.
   const d = new Date()
   d.setUTCMinutes(0, 0, 0)
   d.setUTCHours(d.getUTCHours() + 1)

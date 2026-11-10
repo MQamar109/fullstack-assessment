@@ -1,3 +1,7 @@
+/**
+ * Map overlay for scrubbing the forecast horizon: a heatmap toggle,
+ * the hour slider and the risk colour legend.
+ */
 import { fmtUTC } from '../lib/risk'
 import { RISK_LEVELS, RISK_COLORS } from '../lib/risk'
 

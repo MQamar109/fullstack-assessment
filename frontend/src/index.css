@@ -1,3 +1,7 @@
+/**
+ * Global styles: Tailwind entry, full-height layout shell, and the dark
+ * overrides Leaflet's popups and range inputs need.
+ */
 @import "tailwindcss";
 
 html,
@@ -13,7 +17,6 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-/* Leaflet popups styled for the dark UI */
 .leaflet-popup-content-wrapper,
 .leaflet-popup-tip {
   background: #1e293b;
@@ -29,7 +32,6 @@ body {
   background: #e2e8f0;
 }
 
-/* Range slider */
 input[type="range"] {
   accent-color: #38bdf8;
 }

@@ -1,3 +1,7 @@
+/**
+ * Selectable summary card for one route option, showing its distance,
+ * travel time, average risk and the mileage spent at each risk level.
+ */
 import { riskColor, fmtDuration, ROUTE_COLORS } from '../lib/risk'
 
 function Stat({ label, value, color }) {

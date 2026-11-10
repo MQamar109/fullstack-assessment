@@ -1,3 +1,7 @@
+/**
+ * Root layout and state owner: holds the trip request, the selected route
+ * and the heatmap hour, and lays out the sidebar beside the map.
+ */
 import { useState, useMemo } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { planTrip } from './lib/api'
@@ -23,13 +27,12 @@ export default function App() {
   const data = mutation.data
   const routes = data?.routes ?? []
   const recommended = useMemo(
-    () => routes.find((r) => r.id === data?.recommended_route_id),
-    [routes, data],
+    () => data?.routes?.find((r) => r.id === data?.recommended_route_id),
+    [data],
   )
 
   return (
     <div className="flex h-screen w-screen overflow-hidden">
-      {/* Sidebar */}
       <aside className="w-[380px] shrink-0 overflow-y-auto border-r border-slate-800 bg-slate-900 p-4">
         <header className="mb-4">
           <h1 className="text-lg font-bold text-slate-100">Weather-Aware Truck Routing</h1>
@@ -107,7 +110,6 @@ export default function App() {
         )}
       </aside>
 
-      {/* Map */}
       <main className="relative flex-1">
         <MapView
           data={data}

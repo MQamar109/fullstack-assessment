@@ -1,3 +1,7 @@
+/**
+ * Shared presentation constants and formatters: the risk level palette,
+ * route colours, and UTC time and duration formatting.
+ */
 export const RISK_LEVELS = ['Low', 'Moderate', 'High', 'Severe', 'No Travel']
 
 export const RISK_COLORS = {
@@ -22,7 +26,6 @@ export function riskColor(level) {
   return RISK_COLORS[level] || '#64748b'
 }
 
-/** Format an ISO-UTC string from the API as a readable UTC label. */
 export function fmtUTC(iso) {
   if (!iso) return '—'
   const d = new Date(iso)
