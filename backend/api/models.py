@@ -1,3 +1,1 @@
-from django.db import models
-
-# Create your models here.
+"""No database models: the planning API is stateless and persists nothing."""

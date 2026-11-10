@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Render build script
+# Render build step: install dependencies, collect static files, migrate.
 set -o errexit
 
 pip install -r requirements.txt

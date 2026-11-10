@@ -1,3 +1,4 @@
+"""Request validation for the planning endpoint."""
 from rest_framework import serializers
 
 from .services.planner import parse_departure
@@ -9,8 +10,6 @@ class PlanRequestSerializer(serializers.Serializer):
     departure_time = serializers.CharField()
     load_weight = serializers.FloatField(min_value=0, max_value=200000)
     interval_miles = serializers.ChoiceField(choices=[10, 25, 50], default=25)
-    # Opt-in demo mode: replaces the live forecast with a synthetic storm so
-    # the risk engine can be demonstrated in calm weather.
     simulate = serializers.ChoiceField(
         choices=["", "storm"], required=False, default="", allow_blank=True
     )

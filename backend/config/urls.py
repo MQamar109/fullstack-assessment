@@ -1,3 +1,4 @@
+"""Root URL configuration, including a JSON index of the available endpoints."""
 from django.contrib import admin
 from django.urls import path, include
 from django.http import JsonResponse

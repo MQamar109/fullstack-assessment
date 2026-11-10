@@ -1,3 +1,7 @@
+"""API endpoints: a health probe and the trip planning endpoint.
+
+Upstream routing and weather failures are surfaced as 502 responses.
+"""
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
