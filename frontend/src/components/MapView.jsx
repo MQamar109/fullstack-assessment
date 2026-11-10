@@ -1,3 +1,7 @@
+/**
+ * Leaflet map showing the route options, the selected route's risk-coloured
+ * checkpoints with their forecast popups, and the trip endpoints.
+ */
 import { useEffect, useMemo } from 'react'
 import {
   MapContainer,
@@ -114,7 +118,6 @@ export default function MapView({
 
       <HeatLayer points={heat.points} intensity={heat.intensity} visible={heatVisible} />
 
-      {/* Draw unselected routes first so the selected one sits on top. */}
       {routes
         .filter((r) => r.id !== selectedRouteId)
         .map((r) => (
@@ -141,7 +144,6 @@ export default function MapView({
         />
       )}
 
-      {/* Checkpoints for the selected route only — keeps the map readable. */}
       {selected?.checkpoints.map((cp, i) => (
         <CheckpointMarker key={`${selected.id}-${i}`} cp={cp} routeId={selected.id} />
       ))}

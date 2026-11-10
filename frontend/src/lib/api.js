@@ -1,3 +1,7 @@
+/**
+ * HTTP client for the planning API. Posts a trip to the backend and
+ * flattens DRF validation errors into a single readable message.
+ */
 const BASE = (import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000').replace(/\/$/, '')
 
 export async function planTrip(payload) {
@@ -11,7 +15,7 @@ export async function planTrip(payload) {
   try {
     data = await res.json()
   } catch {
-    // fall through to generic error below
+    data = null
   }
 
   if (!res.ok) {

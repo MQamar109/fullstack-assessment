@@ -1,18 +1,17 @@
+/**
+ * React binding for the canvas heat layer. Creates and destroys the layer
+ * with its visibility, and pushes new weights without rebuilding it.
+ */
 import { useEffect, useRef } from 'react'
 import { useMap } from 'react-leaflet'
 import { heatCanvas } from '../lib/heatCanvas'
 
-const MIN_WEIGHT = 0.06 // keeps the corridor faintly visible in calm weather
+const MIN_WEIGHT = 0.06
 
-/**
- * Weather-intensity heat layer along the trip corridor.
- * `points` is [[lat, lng], ...] and `intensity` is a parallel array of 0..1.
- */
 export default function HeatLayer({ points, intensity, visible }) {
   const map = useMap()
   const layerRef = useRef(null)
 
-  // Create / destroy the layer with visibility.
   useEffect(() => {
     if (!visible) {
       if (layerRef.current) {
@@ -33,7 +32,6 @@ export default function HeatLayer({ points, intensity, visible }) {
     }
   }, [map, visible])
 
-  // Push data on every change (slider moves land here, no layer churn).
   useEffect(() => {
     if (!layerRef.current || !visible) return
     const data = (points ?? []).map((p, i) => [

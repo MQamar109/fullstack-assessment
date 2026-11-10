@@ -1,12 +1,7 @@
 /**
- * A small canvas heat layer for Leaflet.
- *
- * We render this ourselves rather than depending on `leaflet.heat`: that plugin
- * is a classic script that attaches to a global `L`, which Leaflet's ESM build
- * never creates, so it fails to register under Vite. Drawing the field directly
- * keeps the heatmap dependency-free and deterministic.
- *
- * Points are [lat, lng, weight] with weight in 0..1, coloured by the risk ramp.
+ * Canvas heat layer for Leaflet, drawing [lat, lng, weight] points as radial
+ * gradients. Written in place of `leaflet.heat`, which needs a global `L`
+ * that Leaflet's ESM build never creates and so never registers under Vite.
  */
 import L from 'leaflet'
 import { RISK_LEVELS, RISK_COLORS } from './risk'
