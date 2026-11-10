@@ -1,9 +1,7 @@
-"""OpenRouteService client: geocoding + truck (HGV) routing with alternatives.
+"""OpenRouteService client for geocoding and heavy-goods-vehicle routing.
 
-The public ORS API only runs its native *alternative routes* algorithm for
-trips under 100 km. Truck trips are usually far longer, so for those we
-synthesise alternatives ourselves by routing through perpendicular
-via-waypoints along the corridor (no distance cap applies to that).
+ORS only runs its native alternative-routes algorithm under 100 km, so longer
+trips get alternatives synthesised via perpendicular waypoints instead.
 """
 import math
 
@@ -11,8 +9,8 @@ import requests
 from django.conf import settings
 
 TIMEOUT = 30
-SNAP_RADIUS = 5000  # metres; geocoded centroids can sit off the road network
-NATIVE_ALT_MAX_KM = 95  # stay under the ORS 100 km alternatives limit
+SNAP_RADIUS = 5000
+NATIVE_ALT_MAX_KM = 95
 PROFILE = "driving-hgv"
 
 
@@ -27,9 +25,6 @@ def _key():
     return key
 
 
-# --------------------------------------------------------------------------- #
-# Geometry helpers
-# --------------------------------------------------------------------------- #
 def _haversine_km(a_lat, a_lng, b_lat, b_lng):
     r = 6371.0088
     p1, p2 = math.radians(a_lat), math.radians(b_lat)
@@ -64,7 +59,6 @@ def _destination_point(lat, lng, bearing_deg, dist_km):
 
 
 def _midpoint_on_geometry(geometry):
-    """Point roughly halfway along a [[lat, lng], ...] polyline."""
     if not geometry:
         return None
     cum = [0.0]
@@ -77,9 +71,6 @@ def _midpoint_on_geometry(geometry):
     return geometry[len(geometry) // 2]
 
 
-# --------------------------------------------------------------------------- #
-# HTTP
-# --------------------------------------------------------------------------- #
 def geocode(text):
     url = f"{settings.ORS_BASE_URL}/geocode/search"
     params = {"api_key": _key(), "text": text, "size": 1}
@@ -98,7 +89,6 @@ def geocode(text):
 
 
 def _route(coords, profile=PROFILE):
-    """Single route through an ordered list of {lat,lng}. Returns parsed dict."""
     url = f"{settings.ORS_BASE_URL}/v2/directions/{profile}/geojson"
     body = {
         "coordinates": [[c["lng"], c["lat"]] for c in coords],
@@ -115,7 +105,6 @@ def _route(coords, profile=PROFILE):
 
 
 def _native_alternatives(origin, destination):
-    """Try the ORS alternative-routes algorithm (short trips only)."""
     url = f"{settings.ORS_BASE_URL}/v2/directions/driving-car/geojson"
     body = {
         "coordinates": [[origin["lng"], origin["lat"]], [destination["lng"], destination["lat"]]],
@@ -132,7 +121,7 @@ def _native_alternatives(origin, destination):
 
 
 def _parse_feature(feat):
-    coords = feat["geometry"]["coordinates"]  # [lng, lat]
+    coords = feat["geometry"]["coordinates"]
     summary = feat.get("properties", {}).get("summary", {})
     return {
         "geometry": [[lat, lng] for lng, lat in coords],
@@ -142,7 +131,6 @@ def _parse_feature(feat):
 
 
 def _is_distinct(candidate, existing):
-    """A route counts as new if its length or its midpoint differs enough."""
     cand_mid = _midpoint_on_geometry(candidate["geometry"])
     for r in existing:
         dist_close = abs(candidate["distance_m"] - r["distance_m"]) < 0.01 * max(
@@ -156,13 +144,11 @@ def _is_distinct(candidate, existing):
 
 
 def directions(origin, destination, target_count=3):
-    """Return up to `target_count` distinct truck routes between two points."""
-    primary = _route([origin, destination])  # works at any distance
+    primary = _route([origin, destination])
     routes = [primary]
 
     straight_km = _haversine_km(origin["lat"], origin["lng"], destination["lat"], destination["lng"])
 
-    # Short trip: ORS can give genuine alternatives directly.
     if straight_km <= NATIVE_ALT_MAX_KM:
         for alt in _native_alternatives(origin, destination):
             if len(routes) >= target_count:
@@ -170,12 +156,10 @@ def directions(origin, destination, target_count=3):
             if _is_distinct(alt, routes):
                 routes.append(alt)
 
-    # Still short of target: build detours via perpendicular waypoints.
     if len(routes) < target_count:
         mid = _midpoint_on_geometry(primary["geometry"])
         if mid:
             brng = _bearing(origin["lat"], origin["lng"], destination["lat"], destination["lng"])
-            # (offset_km, side) ordered by increasing detour size.
             candidates = [(45, +1), (45, -1), (80, +1), (80, -1), (120, +1), (120, -1)]
             for offset_km, side in candidates:
                 if len(routes) >= target_count:

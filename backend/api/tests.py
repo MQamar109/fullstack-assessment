@@ -1,3 +1,4 @@
+"""Unit tests for the risk engine: threshold bands, load rules and ranking."""
 from django.test import SimpleTestCase
 
 from api.services import risk

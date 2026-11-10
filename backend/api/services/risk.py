@@ -1,16 +1,6 @@
-"""Weather-risk classification and route recommendation logic.
+"""Weather-risk classification and route ranking.
 
-All thresholds come straight from the assessment spec:
-
-    Condition  Low        Moderate    High       Severe      No Travel
-    Wind       <25 mph    25-34       35-44      45-54       >=55 mph
-    Rain       <0.10 in/h 0.10-0.25   0.25-0.50  0.50-1.00   >1.00 in/h
-    Snow       <0.5 in/h  0.5-1.0     1.0-2.0    2.0-3.0     >3.0 in/h
-
-Load rules (escalation applied on top of the wind band):
-    * >=55 mph              -> No Travel for any load
-    * 45-54 mph + >30,000lb -> No Travel
-    * 35-44 mph + >40,000lb -> Severe
+Thresholds and load-weight escalation rules come from the assessment spec.
 """
 
 LEVELS = ["Low", "Moderate", "High", "Severe", "No Travel"]
@@ -18,7 +8,6 @@ LEVEL_SCORE = {name: i for i, name in enumerate(LEVELS)}
 
 
 def worse(a, b):
-    """Return the more severe of two risk level names."""
     return a if LEVEL_SCORE[a] >= LEVEL_SCORE[b] else b
 
 
@@ -65,12 +54,6 @@ def classify_snow(in_per_hr):
 
 
 def classify_checkpoint(weather, load_weight_lb):
-    """Classify one checkpoint.
-
-    `weather` keys: wind_mph, rain_in, snow_in.
-    Returns a dict with the overall level, per-component levels, a numeric
-    score and human-readable reasons.
-    """
     wind_mph = weather.get("wind_mph")
     rain_in = weather.get("rain_in")
     snow_in = weather.get("snow_in")
@@ -79,13 +62,11 @@ def classify_checkpoint(weather, load_weight_lb):
     rain_level = classify_rain(rain_in)
     snow_level = classify_snow(snow_in)
 
-    # Base risk = worst single condition.
     overall = wind_level
     overall = worse(overall, rain_level)
     overall = worse(overall, snow_level)
 
     reasons = []
-    # Load escalation is driven by the wind band.
     load_note = None
     if wind_mph is not None:
         if wind_mph >= 55:
@@ -120,11 +101,6 @@ def classify_checkpoint(weather, load_weight_lb):
 
 
 def summarize_route(checkpoints):
-    """Aggregate checkpoint-level risk into a route summary.
-
-    Each checkpoint carries `segment_miles` (distance it represents) and a
-    classification `level`/`score`.
-    """
     severe_miles = 0.0
     high_miles = 0.0
     no_travel_miles = 0.0
@@ -158,18 +134,6 @@ def summarize_route(checkpoints):
 
 
 def rank_routes(routes):
-    """Rank routes by the spec's recommendation priority.
-
-    Priority (all ascending = better):
-      1. Fewest No-Travel miles (strictly worse than Severe, so first)
-      2. Fewest Severe miles
-      3. Fewest High miles
-      4. Lowest average risk
-      5. Shortest travel time
-    Mutates each route: sets `rank` (1 = best) and `recommended`.
-    Returns the id of the recommended route.
-    """
-
     def sort_key(route):
         s = route["summary"]
         return (

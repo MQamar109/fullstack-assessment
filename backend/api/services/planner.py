@@ -1,4 +1,7 @@
-"""Trip planner: ties routing + weather + risk together into one response."""
+"""Trip planner that ties routing, forecasts and risk scoring together.
+
+Each checkpoint is scored against the forecast for the hour the truck arrives.
+"""
 import math
 from datetime import datetime, timedelta, timezone
 
@@ -7,19 +10,18 @@ from . import ors, weather, risk, simulate
 MILES_PER_METER = 1 / 1609.344
 HEATMAP_MAX_POINTS = 60
 HEATMAP_HOURS = 48
+EARTH_RADIUS_MILES = 3958.7613
 
 
 def haversine_miles(a_lat, a_lng, b_lat, b_lng):
-    r = 3958.7613  # earth radius in miles
     p1, p2 = math.radians(a_lat), math.radians(b_lat)
     dphi = math.radians(b_lat - a_lat)
     dlmb = math.radians(b_lng - a_lng)
     h = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2
-    return 2 * r * math.asin(math.sqrt(h))
+    return 2 * EARTH_RADIUS_MILES * math.asin(math.sqrt(h))
 
 
 def parse_departure(value):
-    """Parse an ISO string into a naive-UTC datetime (internal clock)."""
     dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     if dt.tzinfo is not None:
         dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
@@ -31,22 +33,15 @@ def _iso(dt):
 
 
 def build_checkpoints(geometry, total_miles, total_seconds, departure, interval_miles):
-    """Place checkpoints every `interval_miles` along the polyline.
-
-    Returns dicts with lat, lng, distance_miles (cumulative), eta (datetime),
-    and segment_miles (distance since the previous checkpoint).
-    """
     if not geometry:
         return []
 
-    # Cumulative distance at each polyline vertex.
     cum = [0.0]
     for i in range(1, len(geometry)):
         d = haversine_miles(*geometry[i - 1], *geometry[i])
         cum.append(cum[-1] + d)
     poly_total = cum[-1] or total_miles or 1.0
 
-    # Target distances: 0, interval, 2*interval, ..., and the final point.
     targets = []
     d = 0.0
     while d < poly_total:
@@ -58,7 +53,6 @@ def build_checkpoints(geometry, total_miles, total_seconds, departure, interval_
     seg_idx = 0
     prev_dist = 0.0
     for t in targets:
-        # Advance to the polyline segment containing distance t.
         while seg_idx < len(cum) - 2 and cum[seg_idx + 1] < t:
             seg_idx += 1
         a = geometry[seg_idx]
@@ -94,7 +88,6 @@ def plan_trip(
     destination = ors.geocode(dest_text)
     raw_routes = ors.directions(origin, destination)
 
-    # Build checkpoints for every route first.
     routes = []
     for idx, r in enumerate(raw_routes):
         total_miles = r["distance_m"] * MILES_PER_METER
@@ -111,13 +104,11 @@ def plan_trip(
             }
         )
 
-    # Collect every checkpoint coordinate for one batched weather fetch.
     all_points = []
     for route in routes:
         for cp in route["raw_checkpoints"]:
             all_points.append({"lat": cp["lat"], "lng": cp["lng"]})
 
-    # Weather window must cover the whole trip AND the 48h heatmap horizon.
     max_trip_h = max((rt["duration_hours"] for rt in routes), default=0)
     horizon_h = max(HEATMAP_HOURS, math.ceil(max_trip_h)) + 2
     start_date = departure.date().isoformat()
@@ -128,13 +119,11 @@ def plan_trip(
         [] if simulated else (weather.fetch_hourly(all_points, start_date, end_date) if all_points else [])
     )
 
-    # Demo storms are centred on the middle of the primary route.
     storm_base = None
     if simulated and routes and routes[0]["geometry"]:
         mid = routes[0]["geometry"][len(routes[0]["geometry"]) // 2]
         storm_base = (mid[0], mid[1])
 
-    # Classify each checkpoint using the forecast at its ETA.
     cursor = 0
     for route in routes:
         checkpoints = []
@@ -191,10 +180,6 @@ def plan_trip(
 
 
 def _build_heatmap(routes, series_list, departure, simulated=False, storm_base=None):
-    """Per-hour weather intensity along the corridor (0-48h), reusing the
-    checkpoint forecasts we already fetched. Intensity is weather-only
-    (load-independent), 0..1 = Low..No-Travel."""
-    # Flatten points + their series in the same order used during the fetch.
     points = []
     series_by_point = []
     cursor = 0
@@ -205,7 +190,6 @@ def _build_heatmap(routes, series_list, departure, simulated=False, storm_base=N
             points.append([cp["lat"], cp["lng"]])
             series_by_point.append(series)
 
-    # Downsample evenly if we have too many points.
     if len(points) > HEATMAP_MAX_POINTS:
         step = len(points) / HEATMAP_MAX_POINTS
         keep = [int(i * step) for i in range(HEATMAP_MAX_POINTS)]

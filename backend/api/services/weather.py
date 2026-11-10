@@ -1,9 +1,6 @@
-"""Open-Meteo client. No API key required.
+"""Open-Meteo forecast client, batching many coordinates per request.
 
-Returns hourly forecasts already normalised to the spec's units:
-wind in mph, rain/snow in inch/hr, temperature in Fahrenheit. Open-Meteo
-supports batching many coordinates in one request, which we use to keep the
-number of HTTP calls small.
+Readings are normalised to the spec's units: mph, inch/hr and Fahrenheit.
 """
 from datetime import datetime
 
@@ -11,7 +8,7 @@ import requests
 
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 TIMEOUT = 25
-CHUNK = 50  # coordinates per request
+CHUNK = 50
 CM_TO_INCH = 1 / 2.54
 MM_TO_INCH = 1 / 25.4
 
@@ -25,18 +22,12 @@ def _to_inch(values, unit):
         factor = CM_TO_INCH
     elif unit and unit.startswith("mm"):
         factor = MM_TO_INCH
-    else:  # already inch
+    else:
         factor = 1.0
     return [None if v is None else v * factor for v in values]
 
 
 def fetch_hourly(points, start_date, end_date):
-    """Fetch hourly forecasts for a list of {lat, lng} points.
-
-    Returns a list (aligned with `points`) of dicts:
-        {time: [iso...], wind_mph: [...], rain_in: [...],
-         snow_in: [...], precip_in: [...], temp_f: [...]}
-    """
     results = []
     for i in range(0, len(points), CHUNK):
         chunk = points[i : i + CHUNK]
@@ -60,7 +51,6 @@ def fetch_hourly(points, start_date, end_date):
         except requests.RequestException as exc:
             raise WeatherError(f"Weather lookup failed: {exc}") from exc
 
-        # One location -> dict; many -> list.
         entries = data if isinstance(data, list) else [data]
         for entry in entries:
             results.append(_normalise(entry))
@@ -83,7 +73,6 @@ def _normalise(entry):
 
 
 def index_for_time(times, target):
-    """Return the index of the hourly slot nearest to `target` (a datetime)."""
     if not times:
         return None
     parsed = [datetime.fromisoformat(t) for t in times]
@@ -96,7 +85,6 @@ def index_for_time(times, target):
 
 
 def sample_at(series, idx):
-    """Pull a single weather reading out of a normalised series at index idx."""
     if idx is None:
         return {"wind_mph": None, "rain_in": None, "snow_in": None,
                 "precip_in": None, "temp_f": None}

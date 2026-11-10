@@ -1,4 +1,4 @@
-"""Django settings for the Weather-Aware Truck Routing backend."""
+"""Django settings, driven by environment variables via a local .env file."""
 from pathlib import Path
 import os
 
@@ -17,11 +17,9 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-insecure-secret-key")
 DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() in ("1", "true", "yes")
 
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
-# Render provides the external hostname at runtime.
 RENDER_HOST = os.getenv("RENDER_EXTERNAL_HOSTNAME")
 if RENDER_HOST:
     ALLOWED_HOSTS.append(RENDER_HOST)
-# Allow any *.onrender.com host so the deployed service always validates.
 ALLOWED_HOSTS.append(".onrender.com")
 
 INSTALLED_APPS = [
@@ -97,12 +95,10 @@ REST_FRAMEWORK = {
     "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
 }
 
-# CORS
 CORS_ALLOWED_ORIGINS = env_list(
     "CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
 )
-CORS_ALLOW_ALL_ORIGINS = DEBUG  # convenience in local dev
+CORS_ALLOW_ALL_ORIGINS = DEBUG
 
-# Application config
 ORS_API_KEY = os.getenv("ORS_API_KEY", "")
 ORS_BASE_URL = os.getenv("ORS_BASE_URL", "https://api.openrouteservice.org").rstrip("/")
