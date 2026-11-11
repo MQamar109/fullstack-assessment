@@ -4,6 +4,7 @@ ORS only runs its native alternative-routes algorithm under 100 km, so longer
 trips get alternatives synthesised via perpendicular waypoints instead.
 """
 import math
+from urllib.parse import quote_plus
 
 import requests
 from django.conf import settings
@@ -12,6 +13,12 @@ TIMEOUT = 30
 SNAP_RADIUS = 5000
 NATIVE_ALT_MAX_KM = 95
 PROFILE = "driving-hgv"
+QUOTA_MESSAGE = (
+    "The routing provider's daily quota for this key is used up. It resets each "
+    "day; try again later, or use a key with remaining quota."
+)
+
+_GEOCODE_CACHE = {}
 
 
 class ORSError(Exception):
@@ -23,6 +30,15 @@ def _key():
     if not key:
         raise ORSError("ORS_API_KEY is not configured on the server.")
     return key
+
+
+def _scrub(message):
+    key = settings.ORS_API_KEY
+    text = str(message)
+    if key:
+        text = text.replace(key, "<redacted>")
+        text = text.replace(quote_plus(key), "<redacted>")
+    return text
 
 
 def _haversine_km(a_lat, a_lng, b_lat, b_lng):
@@ -72,20 +88,33 @@ def _midpoint_on_geometry(geometry):
 
 
 def geocode(text):
+    cache_key = " ".join(text.split()).lower()
+    cached = _GEOCODE_CACHE.get(cache_key)
+    if cached is not None:
+        return dict(cached)
+
     url = f"{settings.ORS_BASE_URL}/geocode/search"
     params = {"api_key": _key(), "text": text, "size": 1}
     try:
         resp = requests.get(url, params=params, timeout=TIMEOUT)
-        resp.raise_for_status()
-        data = resp.json()
     except requests.RequestException as exc:
-        raise ORSError(f"Geocoding failed for '{text}': {exc}") from exc
+        raise ORSError(f"Geocoding failed for '{text}'.") from exc
+    if resp.status_code in (403, 429):
+        raise ORSError(QUOTA_MESSAGE)
+    if resp.status_code != 200:
+        raise ORSError(f"Geocoding failed for '{text}' ({resp.status_code}).")
+    try:
+        data = resp.json()
+    except ValueError as exc:
+        raise ORSError(f"Geocoding returned an unreadable response for '{text}'.") from exc
     features = data.get("features") or []
     if not features:
         raise ORSError(f"Could not find a location for '{text}'.")
     feat = features[0]
     lng, lat = feat["geometry"]["coordinates"][:2]
-    return {"label": feat.get("properties", {}).get("label", text), "lat": lat, "lng": lng}
+    result = {"label": feat.get("properties", {}).get("label", text), "lat": lat, "lng": lng}
+    _GEOCODE_CACHE[cache_key] = result
+    return dict(result)
 
 
 def _route(coords, profile=PROFILE):
@@ -96,8 +125,10 @@ def _route(coords, profile=PROFILE):
         "radiuses": [SNAP_RADIUS] * len(coords),
     }
     resp = requests.post(url, json=body, headers={"Authorization": _key()}, timeout=TIMEOUT)
+    if resp.status_code in (403, 429):
+        raise ORSError(QUOTA_MESSAGE)
     if resp.status_code != 200:
-        raise ORSError(f"{resp.status_code}: {resp.text[:200]}")
+        raise ORSError(_scrub(f"Routing failed ({resp.status_code}): {resp.text[:200]}"))
     feats = resp.json().get("features", [])
     if not feats:
         raise ORSError("Routing returned no routes.")
